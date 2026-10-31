@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppContext, TASK_SELECT, canManage, canWork, dict, emailOf, fill, isReady, supabase, useApp } from './lib.js'
 import { disablePush, enablePush, isInstalled, pushState, refreshPush } from './push.js'
 import { InstallGuide, NotificationPrompt, shouldOfferInstall } from './setup.jsx'
-import { Avatar, Modal, MyTasks, Board, Palette, TaskDetail, TaskForm } from './tasks.jsx'
+import { Avatar, MyTasks, Board, Palette, TaskDetail, TaskForm } from './tasks.jsx'
 import { Overview, People, Presets, Projects, Trash } from './pages.jsx'
 import { Reports } from './reports.jsx'
 import { Icon } from './icons.jsx'
@@ -58,53 +58,6 @@ function Login({ lang, setLang, notice }) {
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="btn primary big" disabled={busy}>{t('login')}</button>
           <button type="button" className="link quiet" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>{t('language')}</button>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-function ForcePassword({ lang, setLang, me, onDone }) {
-  const t = (k) => dict[lang][k]
-  const [password, setPassword] = useState('')
-  const [repeat, setRepeat] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  async function submit(e) {
-    e.preventDefault()
-    if (password.length < 6) return setError(t('passwordRule'))
-    if (password !== repeat) return setError(t('passwordsDiffer'))
-    setBusy(true)
-    setError('')
-    const changed = await supabase.auth.updateUser({ password })
-    if (changed.error) {
-      setBusy(false)
-      return setError(/different/i.test(changed.error.message) ? t('passwordSame') : changed.error.message)
-    }
-    const cleared = await supabase.rpc('password_changed')
-    if (cleared.error) {
-      setBusy(false)
-      return setError(cleared.error.message)
-    }
-    await onDone()
-  }
-
-  return (
-    <div className="login">
-      <div className="login-side">
-        <form className="login-form" onSubmit={submit}>
-          <img className="login-logo" src={logo} alt="CVI ARCH" />
-          <h1>{t('hello')} {me.full_name.split(' ')[0]}</h1>
-          <p className="login-intro">{t('forceIntro')}</p>
-          <label>{t('newPassword')}<input dir="ltr" type="password" autoFocus autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} /><small className="muted">{t('passwordRule')}</small></label>
-          <label>{t('repeatPassword')}<input dir="ltr" type="password" autoComplete="new-password" required value={repeat} onChange={(e) => setRepeat(e.target.value)} /></label>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="btn primary big" disabled={busy}>{t('savePassword')}</button>
-          <div className="row login-links">
-            <button type="button" className="link quiet" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>{t('language')}</button>
-            <button type="button" className="link quiet" onClick={() => supabase.auth.signOut()}>{t('logout')}</button>
-          </div>
         </form>
       </div>
     </div>
@@ -179,7 +132,7 @@ function Bell() {
   )
 }
 
-function AccountMenu({ setLang, onChangePassword, onInstall, onPushChange }) {
+function AccountMenu({ setLang, onInstall, onPushChange }) {
   const { t, lang, me, deptName, toast } = useApp()
   const [open, setOpen] = useState(false)
   const [push, setPush] = useState(null)
@@ -228,32 +181,10 @@ function AccountMenu({ setLang, onChangePassword, onInstall, onPushChange }) {
           {['on', 'off'].includes(push) && <button onClick={togglePush}>{push === 'on' ? t('notifyTurnOff') : t('notifyTurnOn')}</button>}
           {push === 'blocked' && <p className="menu-note">{t('notifyBlocked')}</p>}
           {!isInstalled() && <button onClick={() => { onInstall(); setOpen(false) }}>{t('installTitle')}</button>}
-          <button onClick={() => { onChangePassword(); setOpen(false) }}>{t('changePassword')}</button>
           <button onClick={logout}>{t('logout')}</button>
         </div>
       )}
     </div>
-  )
-}
-
-function ChangePassword({ onClose }) {
-  const { t, toast } = useApp()
-  const [password, setPassword] = useState('')
-  async function submit(e) {
-    e.preventDefault()
-    if (password.length < 6) return toast(t('passwordRule'), true)
-    const { error } = await supabase.auth.updateUser({ password })
-    if (error) return toast(error.message, true)
-    toast(t('saved'))
-    onClose()
-  }
-  return (
-    <Modal title={t('changePassword')} onClose={onClose}>
-      <form className="stack" onSubmit={submit}>
-        <label>{t('newPassword')}<input dir="ltr" type="password" autoFocus autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        <button className="btn primary">{t('save')}</button>
-      </form>
-    </Modal>
   )
 }
 
@@ -267,7 +198,6 @@ function Shell({ me, lang, setLang, refreshMe }) {
   const [tasks, setTasks] = useState([])
   const [openId, setOpenId] = useState(null)
   const [creating, setCreating] = useState(false)
-  const [changingPw, setChangingPw] = useState(false)
   const [searching, setSearching] = useState(false)
   const [installing, setInstalling] = useState(shouldOfferInstall)
   const [pushVersion, setPushVersion] = useState(0)
@@ -421,7 +351,6 @@ function Shell({ me, lang, setLang, refreshMe }) {
               <Bell />
               <AccountMenu
                 setLang={setLang}
-                onChangePassword={() => setChangingPw(true)}
                 onInstall={() => setInstalling(true)}
                 onPushChange={() => setPushVersion((v) => v + 1)}
               />
@@ -445,7 +374,6 @@ function Shell({ me, lang, setLang, refreshMe }) {
       {searching && <Palette views={nav} onView={setView} onClose={() => setSearching(false)} />}
       {creating && <TaskForm onClose={() => setCreating(false)} />}
       {openId && <TaskDetail id={openId} onClose={() => setOpenId(null)} />}
-      {changingPw && <ChangePassword onClose={() => setChangingPw(false)} />}
       {installing && <InstallGuide onClose={() => setInstalling(false)} />}
       {message && <div className={`toast ${message.bad ? 'bad' : ''}`} role="status">{message.text}</div>}
     </AppContext.Provider>
@@ -481,6 +409,5 @@ export default function App() {
   if (session === undefined) return null
   if (!session) return <Login lang={lang} setLang={setLang} notice={notice} />
   if (!me) return null
-  if (me.must_change_password) return <ForcePassword lang={lang} setLang={setLang} me={me} onDone={refreshMe} />
   return <Shell me={me} lang={lang} setLang={setLang} refreshMe={refreshMe} />
 }

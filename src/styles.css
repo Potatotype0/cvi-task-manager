@@ -386,6 +386,7 @@ a.btn { text-decoration: none; color: inherit; }
 .login-line { font-weight: 600; color: var(--ink); align-self: flex-start; }
 .login-form h1 { font-size: 22px; }
 .login-links { justify-content: center; gap: 18px; }
+.password-line { display: inline-flex; align-items: center; gap: 10px; }
 .fab { display: none; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 8px; z-index: 40; max-width: calc(100vw - 32px); }
 .toast.bad { background: var(--red); }

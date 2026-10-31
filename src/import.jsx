@@ -21,9 +21,12 @@ export async function createAccount({ username, full_name, password, phone, role
     await supabase.from('invites').delete().eq('username', username)
     throw error
   }
-  const saved = await supabase.from('profiles')
-    .update({ must_change_password: true, ...(phone ? { phone } : {}) }).eq('username', username)
-  if (saved.error) throw saved.error
+  if (phone) {
+    const saved = await supabase.from('profiles').update({ phone }).eq('username', username)
+    if (saved.error) throw saved.error
+  }
+  const recorded = await supabase.rpc('admin_record_password', { p_username: username, p_password: password })
+  if (recorded.error) throw recorded.error
 }
 
 const roleWords = { employee: 'employee', manager: 'manager', 'موظف': 'employee', 'مدير': 'manager' }
@@ -104,7 +107,6 @@ export function ImportStaff({ onClose, onDone }) {
   }
 
   function close() {
-    if (created.length && !window.confirm(t('importCloseWarn'))) return
     onClose()
   }
 

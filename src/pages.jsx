@@ -457,9 +457,26 @@ function AddPerson({ onClose, onAdded }) {
   )
 }
 
+function PasswordLine({ value }) {
+  const { t, toast } = useApp()
+  const [shown, setShown] = useState(false)
+  if (!value) return <small className="muted">{t('passwordNotSet')}</small>
+  async function copy() {
+    await navigator.clipboard.writeText(value)
+    toast(t('copied'))
+  }
+  return (
+    <small className="password-line">
+      <span dir="ltr">{shown ? value : '••••••••'}</span>
+      <button type="button" className="link" onClick={() => setShown(!shown)}>{shown ? t('hidePassword') : t('showPassword')}</button>
+      {shown && <button type="button" className="link" onClick={copy}>{t('copy')}</button>}
+    </small>
+  )
+}
+
 function ResetPassword({ person, onClose }) {
   const { t, toast } = useApp()
-  const [password, setPassword] = useState('')
+  const [password, setPassword] = useState(tempPassword)
   async function submit(e) {
     e.preventDefault()
     if (password.length < 6) return toast(t('passwordRule'), true)
@@ -484,6 +501,13 @@ export function People() {
   const [adding, setAdding] = useState(false)
   const [importing, setImporting] = useState(false)
   const [resetting, setResetting] = useState(null)
+  const [passwords, setPasswords] = useState({})
+
+  const loadPasswords = useCallback(async () => {
+    const { data } = await supabase.from('account_passwords').select('*')
+    setPasswords(Object.fromEntries((data || []).map((r) => [r.user_id, r.password])))
+  }, [])
+  useEffect(() => { loadPasswords() }, [loadPasswords, people])
   const [dept, setDept] = useState({ name_ar: '', name_en: '' })
 
   async function update(p, patch) {
@@ -521,6 +545,7 @@ export function People() {
             <div className="item-main">
               <strong>{p.full_name}{!p.active && <span className="pill">{t('inactive')}</span>}</strong>
               <small className="muted" dir="ltr">{p.username}</small>
+              <PasswordLine value={passwords[p.id]} />
             </div>
             <input
               key={p.phone || 'none'}
@@ -558,7 +583,7 @@ export function People() {
       <StorageMeter used={used} />
       {adding && <AddPerson onClose={() => setAdding(false)} onAdded={loadRefs} />}
       {importing && <ImportStaff onClose={() => setImporting(false)} onDone={loadRefs} />}
-      {resetting && <ResetPassword person={resetting} onClose={() => setResetting(null)} />}
+      {resetting && <ResetPassword person={resetting} onClose={() => { setResetting(null); loadPasswords() }} />}
     </div>
   )
 }
