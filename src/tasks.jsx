@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { canManage, canWork, createTasks, dateAfter, daysFromToday, dueLabel, fill, formatDate, isLate, isReady, nextAction, openFile, supabase, taskLink, today, uploadFile, useApp, whatsappLink } from './lib.js'
+import { canMarkUp, MarkupEditor } from './markup.jsx'
+import { canManage, canWork, createTasks, dateAfter, daysFromToday, downloadFile, dueLabel, fill, formatDate, isLate, isReady, nextAction, openFile, supabase, taskLink, today, uploadFile, useApp, whatsappLink } from './lib.js'
 import { Icon } from './icons.jsx'
 
 function useEscape(onClose) {
   useEffect(() => {
-    const handler = (e) => { if (e.key === 'Escape') onClose() }
+    // The markup screen sits on top, and Escape must not throw away someone's drawing.
+    const handler = (e) => { if (e.key === 'Escape' && !document.querySelector('.markup')) onClose() }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
@@ -742,6 +744,8 @@ export function TaskDetail({ id, onClose }) {
   const [files, setFiles] = useState([])
   const [body, setBody] = useState('')
   const [returning, setReturning] = useState(false)
+  const [marking, setMarking] = useState(null)
+  const closeMarkup = useCallback(() => setMarking(null), [])
 
   const load = useCallback(async () => {
     const [c, m, f] = await Promise.all([
@@ -803,6 +807,16 @@ export function TaskDetail({ id, onClose }) {
     } catch (err) {
       fileError(err)
     }
+  }
+
+  async function saveMarkup(file) {
+    const file_path = await uploadFile('attachments', file, { keepSize: true })
+    const base = marking.name.replace(/\.[^.]+$/, '')
+    const { error } = await supabase.from('attachments').insert({ task_id: id, file_path, file_name: `${t('markupPrefix')} - ${base}.jpg` })
+    if (error) throw error
+    await load()
+    toast(t('markupSaved'))
+    setMarking(null)
   }
 
   async function comment(e) {
@@ -925,10 +939,33 @@ export function TaskDetail({ id, onClose }) {
       {work && (
         <section className="detail-section">
           <h3>{t('files')}</h3>
-          {files.map((f) => <button key={f.id} className="file-link" onClick={() => openFile(f.file_path).catch(fileError)}><Icon name="clip" size={16} />{f.file_name}</button>)}
-          <label className="btn small start"><Icon name="plus" size={15} />{t('addFiles')}<input className="sr" type="file" multiple onChange={(e) => attach([...e.target.files])} /></label>
+          {files.map((f) => (
+            <div className="file-row" key={f.id}>
+              <button className="file-link" onClick={() => openFile(f.file_path).catch(fileError)}><Icon name="clip" size={16} />{f.file_name}</button>
+              {canMarkUp(f.file_name) && (
+                <button
+                  className="btn small"
+                  onClick={() => setMarking({ name: f.file_name, source: () => downloadFile(f.file_path) })}
+                ><Icon name="pen" size={15} />{t('markUp')}</button>
+              )}
+            </div>
+          ))}
+          <div className="row">
+            <label className="btn small"><Icon name="plus" size={15} />{t('addFiles')}<input className="sr" type="file" multiple onChange={(e) => attach([...e.target.files])} /></label>
+            <label className="btn small"><Icon name="pen" size={15} />{t('markUpNew')}<input
+              className="sr"
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => {
+                const file = e.target.files[0]
+                e.target.value = ''
+                if (file) setMarking({ name: file.name, source: file })
+              }}
+            /></label>
+          </div>
         </section>
       )}
+      {marking && <MarkupEditor source={marking.source} name={marking.name} onSave={saveMarkup} onClose={closeMarkup} />}
 
       {work && (
         <section className="detail-section">

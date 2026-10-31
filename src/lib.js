@@ -114,14 +114,22 @@ async function shrinkImage(file) {
 }
 
 // Upload names can be Arabic, which storage paths refuse, so paths use a random id.
-export async function uploadFile(folder, original) {
-  const file = await shrinkImage(original)
+export async function uploadFile(folder, original, { keepSize = false } = {}) {
+  const file = keepSize ? original : await shrinkImage(original)
   if (file.size > MAX_FILE_BYTES) throw new Error('FILE_TOO_BIG')
   const ext = (file.name.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g, '')
   const path = `${folder}/${crypto.randomUUID()}.${ext}`
   const { error } = await supabase.storage.from('task-files').upload(path, file)
   if (error) throw error
   return path
+}
+
+export async function downloadFile(path) {
+  const { data, error } = await supabase.storage.from('task-files').createSignedUrl(path, 300)
+  if (error) throw error
+  const response = await fetch(data.signedUrl)
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.blob()
 }
 
 export async function openFile(path) {
@@ -149,6 +157,7 @@ export const dict = {
     notifications: 'الإشعارات', noNotifications: 'لا توجد إشعارات', markRead: 'تعليم الكل كمقروء',
     n_assigned: 'كُلّفت بمهمة', n_review: 'مهمة بانتظار مراجعتك', n_approved: 'تم اعتماد مهمتك', n_returned: 'أُعيدت مهمتك', n_comment: 'تعليق جديد',
     phone: 'رقم الهاتف', phoneInvalid: 'رقم الهاتف غير صحيح. مثال: 07701234567', phoneHint: 'لزر WhatsApp. مثال: 07701234567', whatsapp: 'WhatsApp', sendWhatsapp: 'إرسال على WhatsApp', tellOnWhatsapp: 'أخبرهم على WhatsApp', tellHint: 'يفتح WhatsApp برسالة جاهزة، وتضغط أنت إرسال.', wa_assigned: 'مرحبًا {name}، كُلّفت بمهمة جديدة: {title}', wa_late: 'مرحبًا {name}، هذه المهمة متأخرة: {title}', wa_task: 'مرحبًا {name}، بخصوص هذه المهمة: {title}', wa_due: 'الموعد: {due}', createdBy: 'أنشأها',
+    markUp: 'تعليم', markUpNew: 'تعليم صورة أو مخطط', toolPen: 'قلم', toolArrow: 'سهم', toolCircle: 'دائرة', toolText: 'نص', colorRed: 'أحمر', colorBlack: 'أسود', undo: 'تراجع', clearAll: 'مسح الكل', saveMarkup: 'حفظ في المهمة', typeHere: 'اكتب هنا…', choosePage: 'اختر صفحة', prevPage: 'السابقة', nextPage: 'التالية', pageOf: 'صفحة {n} من {total}', usePage: 'تعليم هذه الصفحة', openingFile: 'جارٍ فتح الملف…', cantOpenFile: 'تعذر فتح هذا الملف. جرّب صورة JPG أو PNG أو ملف PDF.', markupSaved: 'حُفظ التعليم في ملفات المهمة', markupPrefix: 'تعليم',
     reports: 'التقارير', myNumbers: 'أرقامي', thisWeek: 'هذا الأسبوع', prevWeek: 'الأسبوع السابق', nextWeek: 'الأسبوع التالي', finishedWeek: 'أُنجزت', createdWeek: 'أُنشئت', openNow: 'مفتوحة الآن', lateNow: 'متأخرة الآن', projectProgress: 'تقدم المشاريع', exportExcel: 'تصدير إلى Excel', tasksSheet: 'المهام', tasksTotal: 'عدد المهام', noReportData: 'لا توجد بيانات بعد', noReportHint: 'ستظهر التقارير هنا عند إنشاء المهام.', backup: 'النسخة الاحتياطية', backupHint: 'تنزّل كل بيانات المهام في ملف Excel. لا تشمل الصور والملفات المرفقة.', backupNow: 'تنزيل نسخة احتياطية', backupDone: 'تم تنزيل النسخة الاحتياطية', n_backup: 'حان وقت تنزيل النسخة الاحتياطية الشهرية من صفحة التقارير',
     n_completed: 'تم إنهاء مهمة', n_due_soon: 'موعدها قريب', n_overdue: 'مهمة متأخرة', n_overdue_manager: 'مهمة متأخرة في قسمك', n_morning: 'اليوم: {0}، قريبًا: {1}، متأخرة: {2}', n_weekly: 'هذا الأسبوع: {0} مكتملة، {1} متأخرة، {2} للمراجعة',
     installTitle: 'تثبيت التطبيق', installNow: 'تثبيت الآن', installWhy: 'ثبّت التطبيق على هاتفك لتفتحه بضغطة واحدة وتصلك الإشعارات.', iosStep1: 'افتح هذا الرابط في Safari.', iosStep2: 'اضغط زر المشاركة أسفل الشاشة.', iosStep3: 'اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».', iosStep4: 'افتح التطبيق من أيقونته الجديدة وسجّل الدخول.', iosVersion: 'الإشعارات تحتاج iOS 16.4 أو أحدث.', androidStep1: 'افتح هذا الرابط في Chrome.', androidStep2: 'اضغط النقاط الثلاث في الأعلى.', androidStep3: 'اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».',
@@ -193,6 +202,7 @@ export const dict = {
     notifications: 'Notifications', noNotifications: 'No notifications', markRead: 'Mark all read',
     n_assigned: 'You were assigned a task', n_review: 'A task is waiting for your review', n_approved: 'Your task was approved', n_returned: 'Your task was returned', n_comment: 'New comment',
     phone: 'Phone number', phoneInvalid: 'That phone number looks wrong. Example: 07701234567', phoneHint: 'For the WhatsApp button. Example: 07701234567', whatsapp: 'WhatsApp', sendWhatsapp: 'Send on WhatsApp', tellOnWhatsapp: 'Tell them on WhatsApp', tellHint: 'Opens WhatsApp with the message ready, and you tap send.', wa_assigned: 'Hello {name}, you have a new task: {title}', wa_late: 'Hello {name}, this task is late: {title}', wa_task: 'Hello {name}, about this task: {title}', wa_due: 'Due: {due}', createdBy: 'Created by',
+    markUp: 'Mark up', markUpNew: 'Mark up a photo or drawing', toolPen: 'Pen', toolArrow: 'Arrow', toolCircle: 'Circle', toolText: 'Text', colorRed: 'Red', colorBlack: 'Black', undo: 'Undo', clearAll: 'Clear all', saveMarkup: 'Save to task', typeHere: 'Type here…', choosePage: 'Choose a page', prevPage: 'Previous', nextPage: 'Next', pageOf: 'Page {n} of {total}', usePage: 'Mark up this page', openingFile: 'Opening file…', cantOpenFile: 'This file can’t be opened. Try a JPG, PNG or PDF.', markupSaved: 'Markup saved to the task files', markupPrefix: 'Markup',
     reports: 'Reports', myNumbers: 'My numbers', thisWeek: 'This week', prevWeek: 'Previous week', nextWeek: 'Next week', finishedWeek: 'Finished', createdWeek: 'Created', openNow: 'Open now', lateNow: 'Late now', projectProgress: 'Project progress', exportExcel: 'Export to Excel', tasksSheet: 'Tasks', tasksTotal: 'Tasks', noReportData: 'No data yet', noReportHint: 'Reports appear here once tasks are created.', backup: 'Backup', backupHint: 'Downloads all task data as an Excel file. Photos and attached files are not included.', backupNow: 'Download backup', backupDone: 'Backup downloaded', n_backup: 'Time to download the monthly backup from the Reports page',
     n_completed: 'A task was finished', n_due_soon: 'Due soon', n_overdue: 'Late task', n_overdue_manager: 'A task in your department is late', n_morning: 'Today: {0}, coming up: {1}, late: {2}', n_weekly: 'This week: {0} finished, {1} late, {2} to review',
     installTitle: 'Install the app', installNow: 'Install now', installWhy: 'Install the app on your phone to open it in one tap and get notifications.', iosStep1: 'Open this link in Safari.', iosStep2: 'Tap the Share button at the bottom of the screen.', iosStep3: 'Choose Add to Home Screen, then Add.', iosStep4: 'Open the app from its new icon and log in.', iosVersion: 'Notifications need iOS 16.4 or newer.', androidStep1: 'Open this link in Chrome.', androidStep2: 'Tap the three dots at the top.', androidStep3: 'Choose Install app or Add to Home screen.',
