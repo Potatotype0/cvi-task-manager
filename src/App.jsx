@@ -4,6 +4,7 @@ import { disablePush, enablePush, isInstalled, pushState, refreshPush } from './
 import { InstallGuide, NotificationPrompt, shouldOfferInstall } from './setup.jsx'
 import { Avatar, Modal, MyTasks, Board, Palette, TaskDetail, TaskForm } from './tasks.jsx'
 import { Overview, People, Presets, Projects, Trash } from './pages.jsx'
+import { Reports } from './reports.jsx'
 import { Icon } from './icons.jsx'
 import logo from './assets/logo.png'
 
@@ -305,6 +306,7 @@ function Shell({ me, lang, setLang, refreshMe }) {
     ...(isManager ? [['overview', t('overview'), 'overview', toReview]] : []),
     ['my', t('myTasks'), 'list', myOpen],
     ['board', t('board'), 'board'],
+    ['reports', isManager ? t('reports') : t('myNumbers'), 'report'],
     ...(isManager ? [['presets', t('presets'), 'preset'], ['projects', t('projects'), 'project']] : []),
     ...(me.role === 'admin' ? [['people', t('people'), 'people']] : []),
     ...(isManager ? [['trash', t('trash'), 'trash']] : []),
@@ -384,6 +386,7 @@ function Shell({ me, lang, setLang, refreshMe }) {
             {view === 'overview' && <Overview />}
             {view === 'my' && <MyTasks />}
             {view === 'board' && <Board />}
+            {view === 'reports' && <Reports />}
             {view === 'presets' && <Presets />}
             {view === 'projects' && <Projects />}
             {view === 'people' && <People />}

@@ -18,6 +18,7 @@ const messages: Record<Language, Record<string, string>> = {
     overdue_manager: 'مهمة متأخرة في قسمك',
     morning: 'اليوم: {0}، قريبًا: {1}، متأخرة: {2}',
     weekly: 'هذا الأسبوع: {0} مكتملة، {1} متأخرة، {2} للمراجعة',
+    backup: 'حان وقت تنزيل النسخة الاحتياطية الشهرية من صفحة التقارير',
   },
   en: {
     appName: 'CVI Task Manager',
@@ -30,6 +31,7 @@ const messages: Record<Language, Record<string, string>> = {
     overdue_manager: 'A task in your department is late',
     morning: 'Today: {0}, coming up: {1}, late: {2}',
     weekly: 'This week: {0} finished, {1} late, {2} to review',
+    backup: 'Time to download the monthly backup from the Reports page',
   },
 }
 

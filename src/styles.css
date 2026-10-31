@@ -341,6 +341,21 @@ kbd { font: 11.5px var(--body); padding: 0 6px; background: var(--sheet); border
 .credentials dt { color: var(--muted); }
 .credentials dd { font-weight: 600; }
 
+.report-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+.week-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.week-picker strong { min-width: 100px; text-align: center; font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+.report-table { width: 100%; border-collapse: collapse; }
+.report-table th { text-align: start; font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.report-table th, .report-table td { padding: 9px 14px; border-block-end: 1px solid var(--line); }
+.report-table tr:last-child td { border-block-end: 0; }
+.person-cell { display: inline-flex; align-items: center; gap: 8px; }
+.numbers { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--sheet); border: 1px solid var(--line); border-radius: 12px; }
+.numbers > div { padding: 14px 18px; border-inline-end: 1px solid var(--line); }
+.numbers > div:last-child { border-inline-end: 0; }
+.numbers dt { font-size: 13px; color: var(--muted); }
+.numbers dd { font: 600 26px var(--head); }
+.numbers .late dd { color: var(--red-text); }
 .fab { display: none; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 8px; z-index: 40; max-width: calc(100vw - 32px); }
 .toast.bad { background: var(--red); }
@@ -393,6 +408,9 @@ kbd { font: 11.5px var(--body); padding: 0 6px; background: var(--sheet); border
   .block > div:nth-child(2) { border-inline-end: 0; }
   .block > div:nth-child(-n+2) { border-block-end: 1px solid var(--line); }
   .date-pick, .people-pick, .choice, .grid2 { grid-template-columns: 1fr; }
+  .numbers { grid-template-columns: 1fr 1fr; }
+  .numbers > div:nth-child(2) { border-inline-end: 0; }
+  .numbers > div:nth-child(-n+2) { border-block-end: 1px solid var(--line); }
   .comment-form { flex-direction: column; align-items: stretch; }
   .person-row { grid-template-columns: 34px minmax(0, 1fr); }
   .person-row > select, .person-row > .row { grid-column: 2; }
