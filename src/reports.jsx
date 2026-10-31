@@ -4,7 +4,7 @@ import { Avatar } from './tasks.jsx'
 import { Icon } from './icons.jsx'
 
 // The Excel library is large, so it only downloads when someone exports.
-async function saveWorkbook(sheets, fileName, lang) {
+export async function saveWorkbook(sheets, fileName, lang) {
   const { default: writeXlsxFile } = await import('write-excel-file')
   await writeXlsxFile(sheets.map((s) => s.rows), {
     schema: sheets.map((s) => s.columns.map(([column, value, type]) => ({

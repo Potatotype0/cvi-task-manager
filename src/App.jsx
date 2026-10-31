@@ -64,6 +64,53 @@ function Login({ lang, setLang, notice }) {
   )
 }
 
+function ForcePassword({ lang, setLang, me, onDone }) {
+  const t = (k) => dict[lang][k]
+  const [password, setPassword] = useState('')
+  const [repeat, setRepeat] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    if (password.length < 6) return setError(t('passwordRule'))
+    if (password !== repeat) return setError(t('passwordsDiffer'))
+    setBusy(true)
+    setError('')
+    const changed = await supabase.auth.updateUser({ password })
+    if (changed.error) {
+      setBusy(false)
+      return setError(/different/i.test(changed.error.message) ? t('passwordSame') : changed.error.message)
+    }
+    const cleared = await supabase.rpc('password_changed')
+    if (cleared.error) {
+      setBusy(false)
+      return setError(cleared.error.message)
+    }
+    await onDone()
+  }
+
+  return (
+    <div className="login">
+      <div className="login-side">
+        <form className="login-form" onSubmit={submit}>
+          <img className="login-logo" src={logo} alt="CVI ARCH" />
+          <h1>{t('hello')} {me.full_name.split(' ')[0]}</h1>
+          <p className="login-intro">{t('forceIntro')}</p>
+          <label>{t('newPassword')}<input dir="ltr" type="password" autoFocus autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} /><small className="muted">{t('passwordRule')}</small></label>
+          <label>{t('repeatPassword')}<input dir="ltr" type="password" autoComplete="new-password" required value={repeat} onChange={(e) => setRepeat(e.target.value)} /></label>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          <button className="btn primary big" disabled={busy}>{t('savePassword')}</button>
+          <div className="row login-links">
+            <button type="button" className="link quiet" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')}>{t('language')}</button>
+            <button type="button" className="link quiet" onClick={() => supabase.auth.signOut()}>{t('logout')}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function Bell() {
   const { t, lang, me, openTask, loadTasks } = useApp()
   const [items, setItems] = useState([])
@@ -434,5 +481,6 @@ export default function App() {
   if (session === undefined) return null
   if (!session) return <Login lang={lang} setLang={setLang} notice={notice} />
   if (!me) return null
+  if (me.must_change_password) return <ForcePassword lang={lang} setLang={setLang} me={me} onDone={refreshMe} />
   return <Shell me={me} lang={lang} setLang={setLang} refreshMe={refreshMe} />
 }

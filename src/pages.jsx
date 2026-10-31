@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { FREE_STORAGE_BYTES, TASK_SELECT, emailOf, fill, isLate, signupClient, supabase, today, uploadFile, useApp, whatsappNumber } from './lib.js'
+import { FREE_STORAGE_BYTES, TASK_SELECT, fill, isLate, supabase, today, uploadFile, useApp, whatsappNumber } from './lib.js'
+import { ImportStaff, createAccount, tempPassword } from './import.jsx'
 import { AssigneePicker, Avatar, ChecklistEditor, Drawer, Modal, PrioritySelect, TaskRow } from './tasks.jsx'
 import { Icon } from './icons.jsx'
 
@@ -373,7 +374,7 @@ export function Projects() {
 
 function AddPerson({ onClose, onAdded }) {
   const { t, lang, departments, toast } = useApp()
-  const [form, setForm] = useState({ username: '', full_name: '', password: '', phone: '', role: 'employee', department_id: '' })
+  const [form, setForm] = useState({ username: '', full_name: '', password: tempPassword(), phone: '', role: 'employee', department_id: '' })
   const [created, setCreated] = useState(null)
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
@@ -385,21 +386,13 @@ function AddPerson({ onClose, onAdded }) {
     if (form.password.length < 6) return toast(t('passwordRule'), true)
     if (form.phone.trim() && !whatsappNumber(form.phone)) return toast(t('phoneInvalid'), true)
     setBusy(true)
-    const invite = await supabase.from('invites').upsert({
-      username, full_name: form.full_name.trim(), role: form.role, department_id: form.department_id || null,
-    })
-    if (invite.error) { setBusy(false); return toast(invite.error.message, true) }
-    const { data, error } = await signupClient.auth.signUp({ email: emailOf(username), password: form.password })
+    try {
+      await createAccount({ ...form, username, full_name: form.full_name.trim(), phone: form.phone.trim() })
+    } catch (err) {
+      setBusy(false)
+      return toast(err.message, true)
+    }
     setBusy(false)
-    if (error) {
-      await supabase.from('invites').delete().eq('username', username)
-      return toast(error.message, true)
-    }
-    if (!data.session) toast(t('confirmOff'), true)
-    if (form.phone.trim()) {
-      const saved = await supabase.from('profiles').update({ phone: form.phone.trim() }).eq('username', username)
-      if (saved.error) toast(saved.error.message, true)
-    }
     onAdded()
     setCreated({ username, password: form.password, name: form.full_name.trim() })
   }
@@ -440,7 +433,7 @@ function AddPerson({ onClose, onAdded }) {
         <section>
           <label>{t('fullName')}<input required autoFocus value={form.full_name} onChange={set('full_name')} /></label>
           <label>{t('username')}<input required dir="ltr" autoComplete="off" value={form.username} onChange={set('username')} /><small className="muted">{t('usernameRule')}</small></label>
-          <label>{t('password')}<input required dir="ltr" type="text" autoComplete="off" value={form.password} onChange={set('password')} /><small className="muted">{t('passwordRule')}</small></label>
+          <label>{t('tempPassword')}<input required dir="ltr" type="text" autoComplete="off" value={form.password} onChange={set('password')} /><small className="muted">{t('tempPasswordHint')}</small></label>
           <label>{t('phone')} <small className="muted">({t('optional')})</small><input dir="ltr" type="tel" autoComplete="off" value={form.phone} onChange={set('phone')} /><small className="muted">{t('phoneHint')}</small></label>
         </section>
         <section>
@@ -478,7 +471,7 @@ function ResetPassword({ person, onClose }) {
   return (
     <Modal title={person.full_name} onClose={onClose}>
       <form className="stack" onSubmit={submit}>
-        <label>{t('newPassword')}<input dir="ltr" type="text" autoFocus autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        <label>{t('tempPassword')}<input dir="ltr" type="text" autoFocus autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} /><small className="muted">{t('tempPasswordHint')}</small></label>
         <button className="btn primary">{t('setPassword')}</button>
       </form>
     </Modal>
@@ -489,6 +482,7 @@ export function People() {
   const { t, me, people, departments, toast, loadRefs, deptName } = useApp()
   const used = useStorageUsed()
   const [adding, setAdding] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [resetting, setResetting] = useState(null)
   const [dept, setDept] = useState({ name_ar: '', name_en: '' })
 
@@ -516,7 +510,10 @@ export function People() {
 
   return (
     <div className="page">
-      <div className="page-actions"><button className="btn primary" onClick={() => setAdding(true)}><Icon name="plus" />{t('addPerson')}</button></div>
+      <div className="page-actions row">
+        <button className="btn primary" onClick={() => setAdding(true)}><Icon name="plus" />{t('addPerson')}</button>
+        <button className="btn" onClick={() => setImporting(true)}><Icon name="people" />{t('importStaff')}</button>
+      </div>
       <div className="sheet">
         {people.map((p) => (
           <div className={`person-row ${p.active ? '' : 'off'}`} key={p.id}>
@@ -560,6 +557,7 @@ export function People() {
       </section>
       <StorageMeter used={used} />
       {adding && <AddPerson onClose={() => setAdding(false)} onAdded={loadRefs} />}
+      {importing && <ImportStaff onClose={() => setImporting(false)} onDone={loadRefs} />}
       {resetting && <ResetPassword person={resetting} onClose={() => setResetting(null)} />}
     </div>
   )

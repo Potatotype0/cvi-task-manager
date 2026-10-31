@@ -380,6 +380,12 @@ a.btn { text-decoration: none; color: inherit; }
 .markup-foot { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; background: var(--sheet); border-block-start: 1px solid var(--line); }
 .swatch { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--sheet); box-shadow: 0 0 0 1px var(--line-strong); cursor: pointer; }
 .swatch.on { box-shadow: 0 0 0 2px var(--ink); }
+.paste-box { font-size: 14px; white-space: pre; overflow-x: auto; }
+.lead-small { font: 500 16px var(--head); color: var(--ink); }
+.db-banner.flush { margin: 0; }
+.login-line { font-weight: 600; color: var(--ink); align-self: flex-start; }
+.login-form h1 { font-size: 22px; }
+.login-links { justify-content: center; gap: 18px; }
 .fab { display: none; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 8px; z-index: 40; max-width: calc(100vw - 32px); }
 .toast.bad { background: var(--red); }
