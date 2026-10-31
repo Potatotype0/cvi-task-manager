@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { canManage, canWork, createTasks, dateAfter, daysFromToday, dueLabel, fill, formatDate, isLate, isReady, nextAction, openFile, supabase, today, uploadFile, useApp } from './lib.js'
+import { canManage, canWork, createTasks, dateAfter, daysFromToday, dueLabel, fill, formatDate, isLate, isReady, nextAction, openFile, supabase, taskLink, today, uploadFile, useApp, whatsappLink } from './lib.js'
 import { Icon } from './icons.jsx'
 
 function useEscape(onClose) {
@@ -83,7 +83,33 @@ function ActionButton({ task }) {
   )
 }
 
-export function TaskRow({ task, selectable, selected, onSelect }) {
+// Opens WhatsApp with a ready message in the sender's language. The sender still taps send.
+export function WhatsAppLink({ personId, task, kind = 'task', labelled, children }) {
+  const { t, lang, people } = useApp()
+  const person = people.find((p) => p.id === personId)
+  const lines = [fill(t(`wa_${kind}`), { name: person?.full_name.split(' ')[0] || '', title: task.title })]
+  if (task.due_date) lines.push(fill(t('wa_due'), { due: formatDate(task.due_date, lang) }))
+  lines.push(taskLink(task.id))
+  const href = whatsappLink(person?.phone, lines.join('\n'))
+  if (!href) return null
+  return (
+    <a
+      className={labelled ? 'btn small' : 'wa-link'}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`${t('sendWhatsapp')}: ${person.full_name}`}
+      aria-label={`${t('sendWhatsapp')}: ${person.full_name}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <Icon name="chat" size={labelled ? 15 : 17} />
+      {labelled && t('sendWhatsapp')}
+      {children}
+    </a>
+  )
+}
+
+export function TaskRow({ task, selectable, selected, onSelect, chase }) {
   const { t, lang, openTask, projects, deptName } = useApp()
   const project = projects.find((p) => p.id === task.project_id)
   return (
@@ -99,7 +125,13 @@ export function TaskRow({ task, selectable, selected, onSelect }) {
       </button>
       <Progress items={task.checklist_items} />
       <span className={`due ${isLate(task) ? 'late' : ''}`}>{dueLabel(task, t, lang)}</span>
-      <span className="stack-avatars">{task.task_assignees.slice(0, 3).map((a) => <Avatar key={a.user_id} id={a.user_id} small />)}</span>
+      <span className="stack-avatars">
+        {task.task_assignees.slice(0, 3).map((a) => (
+          chase
+            ? <WhatsAppLink key={a.user_id} personId={a.user_id} task={task} kind="late" />
+            : <Avatar key={a.user_id} id={a.user_id} small />
+        ))}
+      </span>
       <StatusPill status={task.status} />
       <ActionButton task={task} />
     </div>
@@ -121,6 +153,7 @@ function QuickAdd() {
   const [title, setTitle] = useState('')
   const [person, setPerson] = useState(me.id)
   const [busy, setBusy] = useState(false)
+  const [justMade, setJustMade] = useState(null)
   const input = useRef(null)
 
   async function submit(e) {
@@ -130,10 +163,11 @@ function QuickAdd() {
     const assignee = people.find((p) => p.id === person)
     const department_id = me.role === 'admin' ? assignee?.department_id ?? null : me.department_id
     try {
-      await createTasks({
+      const [made] = await createTasks({
         fields: { title: title.trim(), department_id, needs_approval: isManager && person !== me.id },
         assignees: [person],
       })
+      setJustMade(person !== me.id && assignee?.phone ? { task: made, person } : null)
       setTitle('')
       await loadTasks()
       input.current?.focus()
@@ -144,17 +178,26 @@ function QuickAdd() {
   }
 
   return (
-    <form className="quick-add" onSubmit={submit}>
-      <Icon name="plus" />
-      <input ref={input} placeholder={t('quickAddPlaceholder')} aria-label={t('quickAddPlaceholder')} value={title} onChange={(e) => setTitle(e.target.value)} />
-      {isManager && (
-        <select value={person} onChange={(e) => setPerson(e.target.value)} aria-label={t('assignees')}>
-          <option value={me.id}>{t('quickForMe')}</option>
-          {people.filter((p) => p.active && p.id !== me.id).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-        </select>
+    <div className="stack tight">
+      <form className="quick-add" onSubmit={submit}>
+        <Icon name="plus" />
+        <input ref={input} placeholder={t('quickAddPlaceholder')} aria-label={t('quickAddPlaceholder')} value={title} onChange={(e) => setTitle(e.target.value)} />
+        {isManager && (
+          <select value={person} onChange={(e) => setPerson(e.target.value)} aria-label={t('assignees')}>
+            <option value={me.id}>{t('quickForMe')}</option>
+            {people.filter((p) => p.active && p.id !== me.id).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          </select>
+        )}
+        <button type="button" className="link quiet" onClick={openNewTask}>{t('moreDetails')}</button>
+      </form>
+      {justMade && (
+        <div className="tell-bar">
+          <span>{t('created')}: {justMade.task.title}</span>
+          <WhatsAppLink personId={justMade.person} task={justMade.task} kind="assigned" labelled />
+          <button className="icon-btn small" onClick={() => setJustMade(null)} aria-label={t('cancel')}><Icon name="close" size={15} /></button>
+        </div>
       )}
-      <button type="button" className="link quiet" onClick={openNewTask}>{t('moreDetails')}</button>
-    </form>
+    </div>
   )
 }
 
@@ -485,7 +528,8 @@ export function DueDatePicker({ value, onChange }) {
 }
 
 export function TaskForm({ onClose }) {
-  const { t, me, lang, isManager, departments, projects, toast, loadTasks } = useApp()
+  const { t, me, lang, isManager, departments, projects, people: staff, personName, toast, loadTasks } = useApp()
+  const [toTell, setToTell] = useState(null)
   const isAdmin = me.role === 'admin'
   const [form, setForm] = useState({ title: '', description: '', priority: 'normal', due_date: '', department_id: me.department_id || '', project_id: '', drawing_link: '' })
   const [items, setItems] = useState([])
@@ -522,7 +566,7 @@ export function TaskForm({ onClose }) {
     try {
       const uploaded = [...(preset?.attachments || [])]
       for (const file of files) uploaded.push({ file_path: await uploadFile('attachments', file), file_name: file.name })
-      await createTasks({
+      const created = await createTasks({
         fields: {
           title: form.title.trim(),
           description: form.description || null,
@@ -541,11 +585,32 @@ export function TaskForm({ onClose }) {
       })
       await loadTasks()
       toast(t('created'))
-      onClose()
+      const tell = created.flatMap((task) => task.assignees
+        .filter((id) => id !== me.id && staff.find((p) => p.id === id)?.phone)
+        .map((id) => ({ task, id })))
+      if (tell.length) setToTell(tell)
+      else onClose()
     } catch (err) {
       toast(err.message || t('error'), true)
     }
     setBusy(false)
+  }
+
+  if (toTell) {
+    return (
+      <Modal title={t('tellOnWhatsapp')} onClose={onClose}>
+        <div className="stack">
+          <p className="muted">{t('tellHint')}</p>
+          {toTell.map(({ task, id }) => (
+            <div className="tell-row" key={`${task.id}-${id}`}>
+              <span className="person-cell"><Avatar id={id} small />{personName(id)}</span>
+              <WhatsAppLink personId={id} task={task} kind="assigned" labelled />
+            </div>
+          ))}
+          <button className="btn primary" onClick={onClose}>{t('done_btn')}</button>
+        </div>
+      </Modal>
+    )
   }
 
   const count = isManager && separate ? assignees.length : 1
@@ -816,8 +881,19 @@ export function TaskDetail({ id, onClose }) {
       <div className="assignee-line">
         <span className="field-label">{t('assignees')}</span>
         <div className="assignee-chips">
-          {task.task_assignees.map((a) => <span key={a.user_id}><Avatar id={a.user_id} small />{personName(a.user_id)}</span>)}
+          {task.task_assignees.map((a) => (
+            <span key={a.user_id}>
+              <Avatar id={a.user_id} small />{personName(a.user_id)}
+              {work && a.user_id !== me.id && <WhatsAppLink personId={a.user_id} task={task} kind={isLate(task) ? 'late' : 'task'} />}
+            </span>
+          ))}
         </div>
+        {work && task.created_by && task.created_by !== me.id && !task.task_assignees.some((a) => a.user_id === task.created_by) && (
+          <p className="created-by">
+            {t('createdBy')}: {personName(task.created_by)}
+            <WhatsAppLink personId={task.created_by} task={task} />
+          </p>
+        )}
       </div>
 
       {task.description && <p className="desc">{task.description}</p>}

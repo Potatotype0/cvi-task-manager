@@ -59,9 +59,25 @@ export function nextAction(task, me) {
   return null
 }
 
+// Turns local Iraqi numbers (07xx, 7xx) and international ones (+964, 00964) into WhatsApp's digits-only form.
+export function whatsappNumber(phone) {
+  const digits = String(phone || '').replace(/\D/g, '').replace(/^00/, '')
+  if (/^07\d{9}$/.test(digits)) return `964${digits.slice(1)}`
+  if (/^7\d{9}$/.test(digits)) return `964${digits}`
+  return digits.length >= 10 && digits.length <= 15 ? digits : ''
+}
+
+export function whatsappLink(phone, text) {
+  const number = whatsappNumber(phone)
+  return number ? `https://wa.me/${number}?text=${encodeURIComponent(text)}` : ''
+}
+
+export const taskLink = (taskId) => `${location.origin}${location.pathname}?task=${taskId}`
+
 // Inserts one task (or one per person when separate) with its people, checklist and files.
 export async function createTasks({ fields, assignees, separate = true, checklist = [], files = [] }) {
   const groups = separate ? assignees.map((a) => [a]) : [assignees]
+  const created = []
   for (const group of groups) {
     const { data: task, error } = await supabase.from('tasks').insert({ ...fields, is_shared: group.length > 1 }).select().single()
     if (error) throw error
@@ -75,7 +91,9 @@ export async function createTasks({ fields, assignees, separate = true, checklis
       const f = await supabase.from('attachments').insert(files.map((u) => ({ ...u, task_id: task.id })))
       if (f.error) throw f.error
     }
+    created.push({ ...task, assignees: group })
   }
+  return created
 }
 
 // Photos are shrunk before upload so the free storage lasts. Anything unreadable goes up as it is.
@@ -130,6 +148,7 @@ export const dict = {
     finishChecklist: 'أكمل البنود الإلزامية (مع الإثبات) أولًا',
     notifications: 'الإشعارات', noNotifications: 'لا توجد إشعارات', markRead: 'تعليم الكل كمقروء',
     n_assigned: 'كُلّفت بمهمة', n_review: 'مهمة بانتظار مراجعتك', n_approved: 'تم اعتماد مهمتك', n_returned: 'أُعيدت مهمتك', n_comment: 'تعليق جديد',
+    phone: 'رقم الهاتف', phoneInvalid: 'رقم الهاتف غير صحيح. مثال: 07701234567', phoneHint: 'لزر WhatsApp. مثال: 07701234567', whatsapp: 'WhatsApp', sendWhatsapp: 'إرسال على WhatsApp', tellOnWhatsapp: 'أخبرهم على WhatsApp', tellHint: 'يفتح WhatsApp برسالة جاهزة، وتضغط أنت إرسال.', wa_assigned: 'مرحبًا {name}، كُلّفت بمهمة جديدة: {title}', wa_late: 'مرحبًا {name}، هذه المهمة متأخرة: {title}', wa_task: 'مرحبًا {name}، بخصوص هذه المهمة: {title}', wa_due: 'الموعد: {due}', createdBy: 'أنشأها',
     reports: 'التقارير', myNumbers: 'أرقامي', thisWeek: 'هذا الأسبوع', prevWeek: 'الأسبوع السابق', nextWeek: 'الأسبوع التالي', finishedWeek: 'أُنجزت', createdWeek: 'أُنشئت', openNow: 'مفتوحة الآن', lateNow: 'متأخرة الآن', projectProgress: 'تقدم المشاريع', exportExcel: 'تصدير إلى Excel', tasksSheet: 'المهام', tasksTotal: 'عدد المهام', noReportData: 'لا توجد بيانات بعد', noReportHint: 'ستظهر التقارير هنا عند إنشاء المهام.', backup: 'النسخة الاحتياطية', backupHint: 'تنزّل كل بيانات المهام في ملف Excel. لا تشمل الصور والملفات المرفقة.', backupNow: 'تنزيل نسخة احتياطية', backupDone: 'تم تنزيل النسخة الاحتياطية', n_backup: 'حان وقت تنزيل النسخة الاحتياطية الشهرية من صفحة التقارير',
     n_completed: 'تم إنهاء مهمة', n_due_soon: 'موعدها قريب', n_overdue: 'مهمة متأخرة', n_overdue_manager: 'مهمة متأخرة في قسمك', n_morning: 'اليوم: {0}، قريبًا: {1}، متأخرة: {2}', n_weekly: 'هذا الأسبوع: {0} مكتملة، {1} متأخرة، {2} للمراجعة',
     installTitle: 'تثبيت التطبيق', installNow: 'تثبيت الآن', installWhy: 'ثبّت التطبيق على هاتفك لتفتحه بضغطة واحدة وتصلك الإشعارات.', iosStep1: 'افتح هذا الرابط في Safari.', iosStep2: 'اضغط زر المشاركة أسفل الشاشة.', iosStep3: 'اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».', iosStep4: 'افتح التطبيق من أيقونته الجديدة وسجّل الدخول.', iosVersion: 'الإشعارات تحتاج iOS 16.4 أو أحدث.', androidStep1: 'افتح هذا الرابط في Chrome.', androidStep2: 'اضغط النقاط الثلاث في الأعلى.', androidStep3: 'اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».',
@@ -173,6 +192,7 @@ export const dict = {
     finishChecklist: 'Finish the required items (with proof) first',
     notifications: 'Notifications', noNotifications: 'No notifications', markRead: 'Mark all read',
     n_assigned: 'You were assigned a task', n_review: 'A task is waiting for your review', n_approved: 'Your task was approved', n_returned: 'Your task was returned', n_comment: 'New comment',
+    phone: 'Phone number', phoneInvalid: 'That phone number looks wrong. Example: 07701234567', phoneHint: 'For the WhatsApp button. Example: 07701234567', whatsapp: 'WhatsApp', sendWhatsapp: 'Send on WhatsApp', tellOnWhatsapp: 'Tell them on WhatsApp', tellHint: 'Opens WhatsApp with the message ready, and you tap send.', wa_assigned: 'Hello {name}, you have a new task: {title}', wa_late: 'Hello {name}, this task is late: {title}', wa_task: 'Hello {name}, about this task: {title}', wa_due: 'Due: {due}', createdBy: 'Created by',
     reports: 'Reports', myNumbers: 'My numbers', thisWeek: 'This week', prevWeek: 'Previous week', nextWeek: 'Next week', finishedWeek: 'Finished', createdWeek: 'Created', openNow: 'Open now', lateNow: 'Late now', projectProgress: 'Project progress', exportExcel: 'Export to Excel', tasksSheet: 'Tasks', tasksTotal: 'Tasks', noReportData: 'No data yet', noReportHint: 'Reports appear here once tasks are created.', backup: 'Backup', backupHint: 'Downloads all task data as an Excel file. Photos and attached files are not included.', backupNow: 'Download backup', backupDone: 'Backup downloaded', n_backup: 'Time to download the monthly backup from the Reports page',
     n_completed: 'A task was finished', n_due_soon: 'Due soon', n_overdue: 'Late task', n_overdue_manager: 'A task in your department is late', n_morning: 'Today: {0}, coming up: {1}, late: {2}', n_weekly: 'This week: {0} finished, {1} late, {2} to review',
     installTitle: 'Install the app', installNow: 'Install now', installWhy: 'Install the app on your phone to open it in one tap and get notifications.', iosStep1: 'Open this link in Safari.', iosStep2: 'Tap the Share button at the bottom of the screen.', iosStep3: 'Choose Add to Home Screen, then Add.', iosStep4: 'Open the app from its new icon and log in.', iosVersion: 'Notifications need iOS 16.4 or newer.', androidStep1: 'Open this link in Chrome.', androidStep2: 'Tap the three dots at the top.', androidStep3: 'Choose Install app or Add to Home screen.',

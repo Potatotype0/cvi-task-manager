@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { FREE_STORAGE_BYTES, TASK_SELECT, emailOf, fill, isLate, signupClient, supabase, today, uploadFile, useApp } from './lib.js'
+import { FREE_STORAGE_BYTES, TASK_SELECT, emailOf, fill, isLate, signupClient, supabase, today, uploadFile, useApp, whatsappNumber } from './lib.js'
 import { AssigneePicker, Avatar, ChecklistEditor, Drawer, Modal, PrioritySelect, TaskRow } from './tasks.jsx'
 import { Icon } from './icons.jsx'
 
@@ -22,9 +22,9 @@ function StorageMeter({ used }) {
     <section className="group">
       <h3>{t('storage')}</h3>
       <div className="sheet pad-sheet">
-        <div className="load-text"><span dir="ltr">{fill(t('storageUsed'), { used: toMb(used), total: '1 GB' })}</span><b dir="ltr">{Math.round(share * 100)}%</b></div>
+        <div className="load-text"><span>{fill(t('storageUsed'), { used: toMb(used), total: '1 GB' })}</span><b dir="ltr">{Math.round(share * 100)}%</b></div>
         <div className="bar"><i style={{ width: `${Math.min(share, 1) * 100}%` }} /></div>
-        {share >= 0.8 && <p className="late">{t('storageWarn')}</p>}
+        {share >= 0.8 && <p className="db-banner">{t('storageWarn')}</p>}
       </div>
     </section>
   )
@@ -93,7 +93,7 @@ export function Overview() {
           </section>
           <section className="group">
             <h3 className="red">{t('lateTasks')}<span>{late.length}</span></h3>
-            {late.length ? <div className="sheet">{late.map((x) => <TaskRow key={x.id} task={x} />)}</div> : <p className="muted quiet-line">{t('noLate')}</p>}
+            {late.length ? <div className="sheet">{late.map((x) => <TaskRow key={x.id} task={x} chase />)}</div> : <p className="muted quiet-line">{t('noLate')}</p>}
           </section>
         </div>
         <section className="group">
@@ -373,7 +373,7 @@ export function Projects() {
 
 function AddPerson({ onClose, onAdded }) {
   const { t, lang, departments, toast } = useApp()
-  const [form, setForm] = useState({ username: '', full_name: '', password: '', role: 'employee', department_id: '' })
+  const [form, setForm] = useState({ username: '', full_name: '', password: '', phone: '', role: 'employee', department_id: '' })
   const [created, setCreated] = useState(null)
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value })
@@ -383,6 +383,7 @@ function AddPerson({ onClose, onAdded }) {
     const username = form.username.trim().toLowerCase()
     if (!/^[a-z0-9._-]+$/.test(username)) return toast(t('usernameRule'), true)
     if (form.password.length < 6) return toast(t('passwordRule'), true)
+    if (form.phone.trim() && !whatsappNumber(form.phone)) return toast(t('phoneInvalid'), true)
     setBusy(true)
     const invite = await supabase.from('invites').upsert({
       username, full_name: form.full_name.trim(), role: form.role, department_id: form.department_id || null,
@@ -395,6 +396,10 @@ function AddPerson({ onClose, onAdded }) {
       return toast(error.message, true)
     }
     if (!data.session) toast(t('confirmOff'), true)
+    if (form.phone.trim()) {
+      const saved = await supabase.from('profiles').update({ phone: form.phone.trim() }).eq('username', username)
+      if (saved.error) toast(saved.error.message, true)
+    }
     onAdded()
     setCreated({ username, password: form.password, name: form.full_name.trim() })
   }
@@ -436,6 +441,7 @@ function AddPerson({ onClose, onAdded }) {
           <label>{t('fullName')}<input required autoFocus value={form.full_name} onChange={set('full_name')} /></label>
           <label>{t('username')}<input required dir="ltr" autoComplete="off" value={form.username} onChange={set('username')} /><small className="muted">{t('usernameRule')}</small></label>
           <label>{t('password')}<input required dir="ltr" type="text" autoComplete="off" value={form.password} onChange={set('password')} /><small className="muted">{t('passwordRule')}</small></label>
+          <label>{t('phone')} <small className="muted">({t('optional')})</small><input dir="ltr" type="tel" autoComplete="off" value={form.phone} onChange={set('phone')} /><small className="muted">{t('phoneHint')}</small></label>
         </section>
         <section>
           <div>
@@ -493,6 +499,13 @@ export function People() {
     loadRefs()
   }
 
+  function savePhone(p, value) {
+    const phone = value.trim()
+    if (phone === (p.phone || '')) return
+    if (phone && !whatsappNumber(phone)) return toast(t('phoneInvalid'), true)
+    update(p, { phone: phone || null })
+  }
+
   async function addDept(e) {
     e.preventDefault()
     const { error } = await supabase.from('departments').insert(dept)
@@ -512,6 +525,16 @@ export function People() {
               <strong>{p.full_name}{!p.active && <span className="pill">{t('inactive')}</span>}</strong>
               <small className="muted" dir="ltr">{p.username}</small>
             </div>
+            <input
+              key={p.phone || 'none'}
+              className="phone-input"
+              dir="ltr"
+              type="tel"
+              placeholder={t('phone')}
+              aria-label={`${t('phone')}: ${p.full_name}`}
+              defaultValue={p.phone || ''}
+              onBlur={(e) => savePhone(p, e.target.value)}
+            />
             <select disabled={p.id === me.id} value={p.role} onChange={(e) => update(p, { role: e.target.value })} aria-label={t('role')}>
               {['employee', 'manager', 'admin'].map((r) => <option key={r} value={r}>{t(r)}</option>)}
             </select>
